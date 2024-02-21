@@ -1,0 +1,60 @@
+
+variable fccAu equal 4.065
+variable L1 equal ${fccAu}*4
+variable L2 equal ${fccAu}*4
+variable Ti equal 200
+variable Tf equal 2500
+variable tstep equal 0.001
+variable tdamp equal v_tstep*100
+variable pdamp equal v_tstep*1000
+# -- INITIALIZATION -- #
+units metal
+boundary p p p
+atom_style atomic
+timestep 0.001
+
+region system block -${L1} ${L1} -${L1} ${L1} -${L1} ${L1}
+region cube block -${L2} ${L2} -${L2} ${L2} -${L2} ${L2}
+create_box 1 system
+
+
+lattice fcc 4.065
+create_atoms 1 region cube # place atoms on lattice
+#lattice none 1.0 # re-set lattice to default valu
+
+# -- Define Potential -- #
+
+pair_style eam
+pair_coeff * * Au_u3.eam
+neighbor 2.0 bin
+neigh_modify every 10 delay 0 check yes
+
+
+
+## -- Relaxation -- ##
+velocity all create ${Ti} 425521 rot yes mom yes dist gaussian
+fix mynpt all npt temp ${Ti} ${Ti} ${tdamp} iso 1 1 ${pdamp} drag 0.2
+fix myrc all recenter INIT INIT INIT
+
+thermo 100
+thermo_style custom step temp pe ke pxx pyy pzz press 
+run 5000 
+## -- Initial Volume -- ##
+variable var equal "vol"
+variable Vo equal ${var}
+print "The initial Volume is, V0: ${Vo}"
+
+unfix mynpt
+
+
+#--Melting--#
+fix melting all npt temp ${Ti} ${Tf} ${tdamp} iso 1 1 ${pdamp} drag 0.2
+variable dV equal "vol/v_Vo"
+variable temp equal "temp"
+fix print all print 500 "${temp} ${dV}" file meltingV.dat screen no
+
+dump mydmp all atom 200 dump.lammpstrj
+thermo 1000
+thermo_style custom step temp ke pe vol press 
+
+run 100000 
